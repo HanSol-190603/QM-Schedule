@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMP 제조 일정 관리</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:"Malgun Gothic","Noto Sans KR",Arial,sans-serif;background:#f4f6f8;color:#1f2937}
+header{background:#17365d;color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center}
+header h1{margin:0;font-size:22px}
+header .today{font-size:13px;opacity:.9}
+.container{max-width:1500px;margin:0 auto;padding:20px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+button,.btn{border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:9px 13px;cursor:pointer;font-weight:600}
+button:hover{background:#f1f5f9}
+.primary{background:#17365d;color:#fff;border-color:#17365d}
+.primary:hover{background:#214b7d}
+.danger{color:#b91c1c}
+input,select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:9px;font-size:14px;background:#fff}
+textarea{min-height:75px;resize:vertical}
+.search{width:280px}
+.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:15px}
+.card .label{font-size:12px;color:#64748b}.card .num{font-size:25px;font-weight:700;margin-top:5px}
+.alerts{background:#fff;border:1px solid #e2e8f0;border-radius:9px;margin-bottom:18px;overflow:hidden}
+.alerts h2{font-size:16px;margin:0;padding:13px 16px;background:#f8fafc}
+.alert-item{padding:10px 16px;border-top:1px solid #edf2f7;font-size:13px}
+.badge{display:inline-block;border-radius:20px;padding:3px 8px;font-size:11px;font-weight:700;margin-right:6px}
+.badge.normal{background:#dcfce7;color:#166534}.badge.soon{background:#fef3c7;color:#92400e}
+.badge.today{background:#fee2e2;color:#991b1b}.badge.late{background:#7f1d1d;color:#fff}
+.badge.done{background:#dbeafe;color:#1e40af}
+.table-wrap{background:#fff;border:1px solid #e2e8f0;border-radius:9px;overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:1200px}
+th,td{border-bottom:1px solid #e5e7eb;padding:10px 9px;text-align:left;font-size:13px;vertical-align:middle}
+th{background:#f8fafc;color:#475569;white-space:nowrap}
+tr:hover td{background:#fafcff}
+.prep{line-height:1.7}
+.prep-row{display:flex;align-items:center;gap:5px;margin:2px 0}
+.prep-row .mark{font-weight:700}
+.actions{white-space:nowrap}
+.actions button{padding:6px 9px;font-size:12px}
+.empty{text-align:center;padding:50px;color:#94a3b8}
+.modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:1000}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:10px;width:min(850px,100%);max-height:92vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.modal-head{padding:17px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
+.modal-head h2{margin:0;font-size:18px}
+.modal-body{padding:20px}
+.modal-foot{padding:14px 20px;border-top:1px solid #e5e7eb;text-align:right}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:13px}
+.field label{display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:5px}
+.full{grid-column:1/-1}
+.prep-box{border:1px solid #dbe2ea;border-radius:8px;padding:12px;background:#f8fafc}
+.prep-item{background:#fff;border:1px solid #e2e8f0;border-radius:7px;padding:10px;margin-bottom:8px}
+.prep-top{display:grid;grid-template-columns:1fr 150px auto;gap:8px;align-items:center}
+.prep-top .name{font-weight:600}
+.prep-sub{display:flex;gap:12px;align-items:center;margin-top:7px;font-size:12px;color:#475569}
+.check{width:auto}
+.add-prep{display:flex;gap:7px;margin-top:10px}
+.add-prep input{flex:1}
+.small{font-size:11px;color:#64748b}
+.filterbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.filterbar select{width:150px}
+.footer-note{font-size:11px;color:#64748b;margin-top:12px}
+@media(max-width:900px){
+ .cards{grid-template-columns:repeat(2,1fr)}
+ .grid{grid-template-columns:1fr}
+ .full{grid-column:auto}
+ .search{width:100%}
+}
+</style>
+<style>
+.calendar-section{background:#fff;border:1px solid #e2e8f0;border-radius:9px;margin-top:20px;overflow:hidden}
+.calendar-head{display:flex;justify-content:space-between;align-items:center;padding:15px 18px;border-bottom:1px solid #e5e7eb}
+.calendar-head h2{margin:0;font-size:16px}.calendar-nav{display:flex;align-items:center;gap:8px}.calendar-nav strong{min-width:125px;text-align:center}
+.calendar-nav button{padding:6px 10px}.calendar-legend{display:flex;gap:15px;padding:9px 15px;font-size:11px;color:#64748b}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid #e5e7eb}.cal-week{background:#f8fafc;text-align:center;font-weight:700;color:#64748b;padding:8px;font-size:12px;border-right:1px solid #e5e7eb}
+.cal-day{min-height:105px;padding:7px;border-right:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;background:#fff}.cal-day.other{background:#f8fafc;color:#94a3b8}
+.cal-day.today-cell{box-shadow:inset 0 0 0 2px #2563eb}.cal-date{font-size:12px;font-weight:700;margin-bottom:5px}
+.cal-event{display:block;font-size:11px;line-height:1.35;padding:4px 5px;margin:3px 0;border-radius:4px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-event.normal{background:#dcfce7;color:#166534}.cal-event.soon{background:#fef3c7;color:#92400e}.cal-event.today,.cal-event.late{background:#fee2e2;color:#991b1b}.cal-event.done{background:#dbeafe;color:#1e40af}
+@media(max-width:700px){.calendar-head{flex-direction:column;align-items:flex-start}.calendar-nav{width:100%;justify-content:space-between}.cal-day{min-height:82px;padding:4px}.cal-event{font-size:9px;padding:3px}}
+</style></head>
+<body>
+<header>
+  <h1>GMP 제조 일정 관리</h1>
+  <div class="today" id="todayText"></div>
+</header>
+
+<div class="container">
+  <div class="toolbar"><div id="autoSavePanel" style="display:flex;align-items:center;gap:8px;margin-left:8px;">
+<button class="btn secondary" type="button" onclick="selectAutoSaveFolder()">📁 자동저장 폴더 지정</button>
+<span id="autoSaveStatus" style="font-size:12px;color:#64748b;">자동저장 폴더 미지정</span>
+</div>
+    <button class="primary" id="newBtn">＋ 제조 일정 등록</button>
+    <input class="search" id="searchInput" placeholder="제품명 / Batch / 담당자 검색">
+    <select id="statusFilter" style="width:150px">
+      <option value="all">전체 상태</option>
+      <option value="normal">정상</option>
+      <option value="soon">임박</option>
+      <option value="today">오늘</option>
+      <option value="late">지연</option>
+      <option value="done">준비완료</option>
+    </select>
+    <button id="excelBtn">엑셀 복사·붙여넣기</button><input type="file" id="excelFile" accept=".xlsx,.xls,.csv" hidden>
+    <button id="backupBtn">백업 저장</button>
+    <button id="restoreBtn">백업 복원</button>
+    <input type="file" id="restoreFile" accept=".json" hidden>
+  </div>
+
+  <div class="cards">
+    <div class="card"><div class="label">전체 제조 일정</div><div class="num" id="totalCount">0</div></div>
+    <div class="card"><div class="label">정상</div><div class="num" id="normalCount">0</div></div>
+    <div class="card"><div class="label">임박</div><div class="num" id="soonCount">0</div></div>
+    <div class="card"><div class="label">오늘/지연</div><div class="num" id="urgentCount">0</div></div>
+    <div class="card"><div class="label">사전준비 완료</div><div class="num" id="doneCount">0</div></div>
+  </div>
+
+  <div class="alerts">
+    <h2>⚠ 사전 준비사항 알림</h2>
+    <div id="alertList"></div>
+  </div>
+
+  <div class="filterbar">
+    <select id="sortSelect">
+      <option value="manufactureAsc">제조일 빠른순</option>
+      <option value="manufactureDesc">제조일 늦은순</option>
+      <option value="priority">우선순위순</option>
+      <option value="updated">최근 수정순</option>
+    </select>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>제조일</th><th>제품명</th><th>Batch</th><th>담당자</th>
+          <th>사전 준비사항</th><th>진행률</th><th>전체상태</th><th>작업</th>
+        </tr>
+      </thead>
+      <tbody id="scheduleBody"></tbody>
+    </table>
+  </div>
+<div class="calendar-section">
+<div class="calendar-head"><h2>제조 일정 달력 현황</h2>
+<div class="calendar-nav"><button type="button" id="prevMonth">‹</button><strong id="calendarTitle"></strong><button type="button" id="nextMonth">›</button><button type="button" id="todayMonth">오늘</button></div></div>
+<div class="calendar-legend"><span>🟢 정상</span><span>🟡 임박</span><span>🔴 오늘/지연</span><span>🔵 준비완료</span></div>
+<div class="calendar-grid" id="calendarGrid"></div></div>
+  <div class="footer-note">※ 데이터는 현재 브라우저에 자동 저장됩니다. PC 변경 또는 브라우저 데이터 삭제에 대비하여 정기적으로 백업하세요.</div>
+</div>
+
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modalTitle">제조 일정 등록</h2>
+      <button id="closeModal">✕</button>
+    </div>
+    <form id="scheduleForm">
+      <div class="modal-body">
+        <input type="hidden" id="editId">
+        <div class="grid">
+          <div class="field">
+            <label>제품명 *</label>
+            <input id="product" required>
+          </div>
+          <div class="field">
+            <label>Batch No. *</label>
+            <input id="batch" required>
+          </div>
+          <div class="field">
+            <label>제조 예정일 *</label>
+            <input id="manufactureDate" type="date" required>
+          </div>
+          <div class="field">
+            <label>담당자</label>
+            <input id="manager">
+          </div>
+          <div class="field full">
+            <label>사전 준비사항</label>
+            <div class="prep-box">
+              <div id="prepList"></div>
+              <div class="add-prep">
+                <input id="newPrepName" placeholder="새 준비사항을 직접 추가">
+                <button type="button" id="addPrepBtn">＋ 추가</button>
+              </div>
+              <div class="small">기본 항목: PV 계획서 / 세척기록서 제·개정 / CV 계획서 / 변경관리 승인<br>
+제품명을 입력하면 각 준비사항 앞에 제품명이 자동으로 표시됩니다.</div>
+            </div>
+          </div>
+          <div class="field full">
+            <label>비고</label>
+            <textarea id="memo" placeholder="추가적인 제조 일정 관련 사항을 입력하세요."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" id="cancelBtn">취소</button>
+        <button type="submit" class="primary">저장</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = "gmp_manufacturing_schedule_v2";
+const PREP_KEY = "gmp_custom_preparations_v2";
+const DEFAULT_PREPS = ["PV 계획서","세척기록서 제·개정","CV 계획서","변경관리 승인"];
+
+let schedules = loadSchedules();
+let customPreps = loadCustomPreps();
+let currentPrepDraft = [];
+let calendarDate = new Date();
+
+const $ = id => document.getElementById(id);
+
+function loadSchedules(){
+  try{return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []}catch(e){return []}
+}
+function saveSchedules(){localStorage.setItem(STORAGE_KEY,JSON.stringify(schedules))}
+function loadCustomPreps(){
+  try{return JSON.parse(localStorage.getItem(PREP_KEY)) || []}catch(e){return []}
+}
+function saveCustomPreps(){localStorage.setItem(PREP_KEY,JSON.stringify(customPreps))}
+function uid(){
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return "id-"+Date.now()+"-"+Math.random().toString(36).slice(2);
+}
+function today(){
+  const d=new Date();
+  return new Date(d.getFullYear(),d.getMonth(),d.getDate());
+}
+function dateObj(s){
+  if(!s)return null;
+  const [y,m,d]=s.split("-").map(Number);
+  return new Date(y,m-1,d);
+}
+function dateText(s){
+  if(!s)return "-";
+  return s.replaceAll("-",".");
+}
+function daysFromToday(s){
+  const d=dateObj(s); if(!d)return null;
+  return Math.round((d-today())/86400000);
+}
+function esc(s){
+  return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+}
+function allPrepNames(){
+  return [...DEFAULT_PREPS,...customPreps.filter(x=>!DEFAULT_PREPS.includes(x))];
+}
+function statusForPrep(p){
+  if(p.completed)return {cls:"done",label:"완료"};
+  const n=daysFromToday(p.due);
+  if(n===null)return {cls:"normal",label:"기한 미입력"};
+  if(n<0)return {cls:"late",label:"지연"};
+  if(n===0)return {cls:"today",label:"오늘"};
+  if(n<=6)return {cls:"soon",label:"D-"+n};
+  return {cls:"normal",label:"D-"+n};
+}
+function scheduleOverall(s){
+  if(!s.preparations || !s.preparations.length)return {cls:"normal",label:"준비사항 없음"};
+  const active=s.preparations.filter(p=>!p.completed);
+  if(!active.length)return {cls:"done",label:"준비완료"};
+  if(active.some(p=>daysFromToday(p.due)!==null && daysFromToday(p.due)<0))return {cls:"late",label:"지연"};
+  if(active.some(p=>daysFromToday(p.due)===0))return {cls:"today",label:"오늘"};
+  if(active.some(p=>{let n=daysFromToday(p.due);return n!==null&&n<=6}))return {cls:"soon",label:"임박"};
+  return {cls:"normal",label:"정상"};
+}
+function priority(s){
+  const st=scheduleOverall(s);
+  return {late:1,today:2,soon:3,normal:4,done:5}[st.cls]||9;
+}
+
+function openNew(){
+  $("editId").value="";
+  $("modalTitle").textContent="제조 일정 등록";
+  $("scheduleForm").reset();
+  currentPrepDraft=allPrepNames().map(name=>({name,due:"",completed:false}));
+  renderPrepDraft();
+  $("modal").classList.add("show");
+  setTimeout(()=>$("product").focus(),50);
+}
+function openEdit(id){
+  const s=schedules.find(x=>x.id===id);
+  if(!s)return;
+  $("editId").value=s.id;
+  $("modalTitle").textContent="제조 일정 수정";
+  $("product").value=s.product||"";
+  $("batch").value=s.batch||"";
+  $("manufactureDate").value=s.manufactureDate||"";
+  $("manager").value=s.manager||"";
+  $("memo").value=s.memo||"";
+  currentPrepDraft=(s.preparations||[]).map(p=>({...p}));
+  renderPrepDraft();
+  $("modal").classList.add("show");
+}
+function closeModal(){$("modal").classList.remove("show")}
+function renderPrepDraft(){
+  const box=$("prepList");
+  box.innerHTML="";
+  currentPrepDraft.forEach((p,i)=>{
+    const div=document.createElement("div");
+    div.className="prep-item";
+    div.innerHTML=`
+      <div class="prep-top">
+        <div class="name">${esc(($("product").value.trim() || "제품명 미입력") + " - " + p.name)}</div>
+        <input type="date" data-prep-due="${i}" value="${esc(p.due||"")}" title="완료기한">
+        <button type="button" data-remove-prep="${i}" class="danger">삭제</button>
+      </div>
+      <div class="prep-sub">
+        <label><input class="check" type="checkbox" data-prep-complete="${i}" ${p.completed?"checked":""}> 완료</label>
+      </div>`;
+    box.appendChild(div);
+  });
+}
+function addPreparation(name){
+  name=name.trim();
+  if(!name)return;
+  if(allPrepNames().includes(name)){
+    alert("이미 등록된 준비사항입니다.");
+    return;
+  }
+  customPreps.push(name);
+  saveCustomPreps();
+  currentPrepDraft.push({name,due:"",completed:false});
+  renderPrepDraft();
+  $("newPrepName").value="";
+}
+function saveForm(e){
+  e.preventDefault();
+  const product=$("product").value.trim();
+  const batch=$("batch").value.trim();
+  const manufactureDate=$("manufactureDate").value;
+  if(!product||!batch||!manufactureDate){
+    alert("제품명, Batch No., 제조 예정일은 필수입니다.");
+    return;
+  }
+
+  const preparations=currentPrepDraft.map((p,i)=>({
+    id:p.id||uid(),
+    name:p.name,
+    due:p.due||"",
+    completed:!!p.completed
+  }));
+
+  const id=$("editId").value;
+  const now=new Date().toISOString();
+
+  if(id){
+    const idx=schedules.findIndex(x=>x.id===id);
+    if(idx<0){alert("수정할 일정을 찾을 수 없습니다.");return}
+    schedules[idx]={
+      ...schedules[idx],
+      product,batch,manufactureDate,
+      manager:$("manager").value.trim(),
+      preparations,
+      memo:$("memo").value.trim(),
+      updatedAt:now
+    };
+  }else{
+    schedules.push({
+      id:uid(),product,batch,manufactureDate,
+      manager:$("manager").value.trim(),
+      preparations,memo:$("memo").value.trim(),
+      createdAt:now,updatedAt:now,archived:false
+    });
+  }
+  saveSchedules();
+  closeModal();
+  render();
+}
+
+function render(){
+  const q=$("searchInput").value.trim().toLowerCase();
+  const filter=$("statusFilter").value;
+  const sort=$("sortSelect").value;
+
+  let list=schedules.filter(s=>!s.archived);
+  list=list.filter(s=>{
+    const hay=[s.product,s.batch,s.manager].join(" ").toLowerCase();
+    if(q&&!hay.includes(q))return false;
+    const st=scheduleOverall(s).cls;
+    if(filter==="done")return st==="done";
+    return filter==="all"||st===filter;
+  });
+
+  list.sort((a,b)=>{
+    if(sort==="manufactureAsc")return (a.manufactureDate||"").localeCompare(b.manufactureDate||"");
+    if(sort==="manufactureDesc")return (b.manufactureDate||"").localeCompare(a.manufactureDate||"");
+    if(sort==="priority")return priority(a)-priority(b);
+    return (b.updatedAt||"").localeCompare(a.updatedAt||"");
+  });
+
+  $("scheduleBody").innerHTML=list.length?list.map(s=>{
+    const prep=s.preparations||[];
+    const completed=prep.filter(p=>p.completed).length;
+    const pct=prep.length?Math.round(completed/prep.length*100):0;
+    const st=scheduleOverall(s);
+    const prepHtml=prep.map(p=>{
+      const ps=statusForPrep(p);
+      return `<div class="prep-row"><span class="mark">${p.completed?"✓":"•"}</span><span>${esc(s.product + " - " + p.name)}</span>
+      ${p.completed?`<span class="badge done">완료</span>`:`<span class="badge ${ps.cls}">${ps.label}</span>`}
+      ${p.due?`<span class="small">(${dateText(p.due)})</span>`:""}</div>`;
+    }).join("");
+    return `<tr>
+      <td>${dateText(s.manufactureDate)}</td>
+      <td><strong>${esc(s.product)}</strong></td>
+      <td>${esc(s.batch)}</td>
+      <td>${esc(s.manager||"-")}</td>
+      <td class="prep">${prepHtml||"-"}</td>
+      <td>${pct}%</td>
+      <td><span class="badge ${st.cls}">${st.label}</span></td>
+      <td class="actions">
+        <button data-edit="${s.id}">수정</button>
+        <button data-archive="${s.id}" class="danger">보관</button>
+      </td>
+    </tr>`;
+  }).join(""):`<tr><td colspan="8" class="empty">등록된 제조 일정이 없습니다.</td></tr>`;
+
+  updateCards();
+  renderAlerts();
+  renderCalendar();
+}
+function updateCards(){
+  const list=schedules.filter(s=>!s.archived);
+  $("totalCount").textContent=list.length;
+  $("normalCount").textContent=list.filter(s=>scheduleOverall(s).cls==="normal").length;
+  $("soonCount").textContent=list.filter(s=>scheduleOverall(s).cls==="soon").length;
+  $("urgentCount").textContent=list.filter(s=>["today","late"].includes(scheduleOverall(s).cls)).length;
+  $("doneCount").textContent=list.filter(s=>scheduleOverall(s).cls==="done").length;
+}
+function renderAlerts(){
+  const items=[];
+  schedules.filter(s=>!s.archived).forEach(s=>{
+    (s.preparations||[]).forEach(p=>{
+      if(p.completed||!p.due)return;
+      const n=daysFromToday(p.due);
+      if(n!==null&&n<=6){
+        items.push({s,p,n});
+      }
+    });
+  });
+  items.sort((a,b)=>a.n-b.n);
+  $("alertList").innerHTML=items.length?items.slice(0,20).map(x=>{
+    const cls=x.n<0?"late":x.n===0?"today":"soon";
+    const label=x.n<0?`D+${Math.abs(x.n)} 지연`:x.n===0?"오늘":`D-${x.n}`;
+    return `<div class="alert-item"><span class="badge ${cls}">${label}</span>
+      <strong>${esc(x.s.product)}</strong> / ${esc(x.s.batch)} — ${esc(x.p.name)}
+      <span class="small">기한 ${dateText(x.p.due)}</span></div>`;
+  }).join(""):`<div class="alert-item">현재 임박 또는 지연된 사전 준비사항이 없습니다.</div>`;
+}
+
+
+function formatDateLocal(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
+function renderCalendar(){
+ const y=calendarDate.getFullYear(),m=calendarDate.getMonth(),first=new Date(y,m,1),start=new Date(y,m,1-first.getDay());
+ $("calendarTitle").textContent=`${y}년 ${m+1}월`;
+ const grid=$("calendarGrid"); grid.innerHTML=["일","월","화","수","목","금","토"].map(x=>`<div class="cal-week">${x}</div>`).join("");
+ for(let i=0;i<42;i++){
+  const d=new Date(start); d.setDate(start.getDate()+i);
+  const ds=formatDateLocal(d), cell=document.createElement("div");
+  cell.className="cal-day"+(d.getMonth()!==m?" other":"")+(ds===formatDateLocal(new Date())?" today-cell":"");
+  cell.innerHTML=`<div class="cal-date">${d.getDate()}</div>`;
+
+  // 제조 일정: 제조 예정일에 표시
+  schedules.filter(s=>!s.archived&&s.manufactureDate===ds).forEach(s=>{
+    const st=scheduleOverall(s),ev=document.createElement("div");
+    ev.className=`cal-event ${st.cls}`;
+    ev.textContent=`${s.product} · ${s.batch}`;
+    ev.title=`제조: ${s.product} / ${s.batch}`;
+    ev.dataset.edit=s.id;
+    cell.appendChild(ev);
+  });
+
+  // 사전준비사항: 각 항목의 기한(due)에 관계없이 모두 표시
+  schedules.filter(s=>!s.archived).forEach(s=>{
+    (s.preparations||[]).forEach(pr=>{
+      const prepDate=pr.due || s.manufactureDate;
+      if(prepDate!==ds)return;
+      const ev=document.createElement("div");
+      let cls="cal-prep";
+      if(pr.completed) cls += " done";
+      else {
+        const n=daysFromToday(pr.due);
+        if(n!==null&&n<0) cls += " late";
+        else if(n===0) cls += " today";
+        else if(n!==null&&n<=6) cls += " soon";
+      }
+      ev.className=cls;
+      ev.textContent=`↳ ${s.product} - ${pr.name}${pr.completed?" ✓":""}`;
+      ev.title=`사전준비: ${s.product} - ${pr.name} / 기한 ${pr.due||s.manufactureDate}${pr.completed?" / 완료":""}`;
+      ev.dataset.edit=s.id;
+      cell.appendChild(ev);
+    });
+  });
+  grid.appendChild(cell);
+ }
+}
+$("prevMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);renderCalendar()};
+$("nextMonth").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);renderCalendar()};
+$("todayMonth").onclick=()=>{calendarDate=new Date();renderCalendar()};
+$("calendarGrid").addEventListener("click",e=>{if(e.target.dataset.edit)openEdit(e.target.dataset.edit)});
+
+$("excelBtn").onclick=()=>$("excelFile").click();
+$("excelFile").onchange=e=>{
+ const file=e.target.files[0];if(!file)return;const reader=new FileReader();
+ reader.onload=ev=>{try{
+  if(typeof XLSX==="undefined")throw new Error("Excel 기능을 불러오지 못했습니다.");
+  const wb=XLSX.read(ev.target.result,{type:"array"}),ws=wb.Sheets[wb.SheetNames[0]],rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+  if(rows.length<2)throw new Error("데이터가 없습니다.");
+  const h=rows[0].map(x=>String(x).trim().toLowerCase());
+  const col=(...ns)=>{for(const n of ns){const i=h.findIndex(x=>x===n.toLowerCase()||x.includes(n.toLowerCase()));if(i>=0)return i}return -1};
+  const pi=col("제품명","product","품목"),bi=col("로트번호","batch","lot"),di=col("제조일","manufacture","제조 예정일"),mi=col("담당자","manager");
+  if(pi<0||bi<0)throw new Error("첫 행에 제품명과 로트번호 열이 필요합니다.");
+  let added=0,skipped=0;
+  rows.slice(1).forEach(r=>{const product=String(r[pi]??"").trim(),batch=String(r[bi]??"").trim();if(!product||!batch){skipped++;return}
+   let md="";const v=di>=0?r[di]:"";if(typeof v==="number"&&XLSX.SSF)md=XLSX.SSF.format("yyyy-mm-dd",v);else{const t=String(v??"").trim().replace(/[./]/g,"-"),mm=t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);if(mm)md=`${mm[1]}-${String(mm[2]).padStart(2,"0")}-${String(mm[3]).padStart(2,"0")}`}
+   if(!md)md=formatDateLocal(new Date());
+   schedules.push({id:uid(),product,batch,manufactureDate:md,manager:mi>=0?String(r[mi]??"").trim():"",preparations:allPrepNames().map(name=>({id:uid(),name,due:"",completed:false})),memo:"엑셀 복사·붙여넣기 일괄등록",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),archived:false});added++;
+  });
+  saveSchedules();render();alert(`${added}건 등록되었습니다.${skipped?`\\n제외: ${skipped}건`:""}`);
+ }catch(err){alert("엑셀 복사·붙여넣기에 실패했습니다.\\n"+err.message)}e.target.value=""};reader.readAsArrayBuffer(file)
+};
+
+$("newBtn").onclick=openNew;
+$("closeModal").onclick=closeModal;
+$("cancelBtn").onclick=closeModal;
+$("scheduleForm").onsubmit=saveForm;
+$("searchInput").oninput=render;
+$("statusFilter").onchange=render;
+$("product").addEventListener("input",()=>{
+  if($("modal").classList.contains("show")) renderPrepDraft();
+});
+$("sortSelect").onchange=render;
+
+$("addPrepBtn").onclick=()=>addPreparation($("newPrepName").value);
+$("newPrepName").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addPreparation(e.target.value)}});
+
+$("prepList").addEventListener("input",e=>{
+  const due=e.target.dataset.prepDue;
+  const complete=e.target.dataset.prepComplete;
+  if(due!==undefined)currentPrepDraft[Number(due)].due=e.target.value;
+  if(complete!==undefined)currentPrepDraft[Number(complete)].completed=e.target.checked;
+});
+$("prepList").addEventListener("click",e=>{
+  const idx=e.target.dataset.removePrep;
+  if(idx!==undefined){
+    if(confirm("이 준비사항을 이번 제조 일정에서 삭제하시겠습니까?")){
+      currentPrepDraft.splice(Number(idx),1);renderPrepDraft();
+    }
+  }
+});
+
+$("scheduleBody").addEventListener("click",e=>{
+  const edit=e.target.dataset.edit;
+  const archive=e.target.dataset.archive;
+  if(edit)openEdit(edit);
+  if(archive){
+    const s=schedules.find(x=>x.id===archive);
+    if(s&&confirm("이 일정을 보관 처리하시겠습니까?")){
+      s.archived=true;s.updatedAt=new Date().toISOString();saveSchedules();render();
+    }
+  }
+});
+
+$("backupBtn").onclick=()=>{
+  const data={version:2,exportedAt:new Date().toISOString(),schedules,customPreps};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="GMP_제조일정_백업_"+new Date().toISOString().slice(0,10)+".json";
+  a.click();URL.revokeObjectURL(a.href);
+};
+$("restoreBtn").onclick=()=>$("restoreFile").click();
+$("restoreFile").onchange=e=>{
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const data=JSON.parse(reader.result);
+      if(!Array.isArray(data.schedules))throw new Error();
+      if(confirm("현재 데이터를 백업파일 데이터로 교체하시겠습니까?")){
+        schedules=data.schedules;
+        customPreps=Array.isArray(data.customPreps)?data.customPreps:[];
+        saveSchedules();saveCustomPreps();render();
+      }
+    }catch(err){alert("올바른 백업 파일이 아닙니다.")}
+    e.target.value="";
+  };
+  reader.readAsText(file);
+};
+
+$("modal").addEventListener("click",e=>{if(e.target===$("modal"))closeModal()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("modal").classList.contains("show"))closeModal()});
+
+function setTodayText(){
+  const d=new Date();
+  $("todayText").textContent=`${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
+}
+setTodayText();
+render();
+</script>
+
+<div id="pasteModal" class="modal">
+  <div class="modal-box" style="max-width:900px;">
+    <div class="modal-head">
+      <h3>엑셀 복사·붙여넣기 일괄등록</h3>
+      <button class="icon-btn" onclick="closePasteModal()">×</button>
+    </div>
+    <div style="padding:16px 18px 4px;color:#64748b;font-size:13px;line-height:1.6;">
+      Excel에서 <b>제품명 / Lot번호 / 제조일 / 담당자</b> 열을 포함한 표를 복사한 후 아래에 그대로 붙여넣으세요.
+      첫 번째 행은 제목으로 인식합니다. 제품명과 Lot번호는 필수입니다.
+    </div>
+    <div style="padding:12px 18px;">
+      <textarea id="excelPasteArea" style="width:100%;height:220px;box-sizing:border-box;padding:12px;border:1px solid #cbd5e1;border-radius:8px;font-family:monospace;font-size:13px;resize:vertical;"
+        placeholder="예:
+제품명	Lot번호	제조일	담당자
+세프트리악손	L001	2026-10-20	홍길동
+세프트리악손	L002	2026-10-25	김철수"></textarea>
+    </div>
+    <div id="pastePreview" style="padding:0 18px 10px;"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closePasteModal()">취소</button>
+      <button class="btn primary" onclick="openPasteModal()">붙여넣은 데이터 등록</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+function openPasteModal(){
+  const m=document.getElementById('pasteModal');
+  if(m) m.classList.add('show');
+  const a=document.getElementById('excelPasteArea');
+  if(a){a.value=''; a.focus();}
+  const p=document.getElementById('pastePreview');
+  if(p)p.innerHTML='';
+}
+function closePasteModal(){
+  const m=document.getElementById('pasteModal');
+  if(m)m.classList.remove('show');
+}
+function normalizePasteHeader(v){
+  return String(v||'').trim().replace(/\s+/g,'').toLowerCase();
+}
+function parsePastedRows(text){
+  const lines=String(text||'').replace(/\r/g,'').split('\n').filter(x=>x.trim()!=='');
+  if(lines.length<2) return [];
+  const rows=lines.map(line=>line.split('\t').map(x=>x.trim()));
+  const h=rows[0].map(normalizePasteHeader);
+  const findCol=(names)=>{
+    for(const n of names){
+      const i=h.indexOf(normalizePasteHeader(n));
+      if(i>=0)return i;
+    }
+    return -1;
+  };
+  const pi=findCol(['제품명','product','품목']);
+  const bi=findCol(['로트번호','lot번호','batch','lot','batchno']);
+  const di=findCol(['제조일','제조예정일','manufacture','manufacturedate']);
+  const mi=findCol(['담당자','manager']);
+  if(pi<0 || bi<0) throw new Error('제품명과 Lot번호 열을 찾을 수 없습니다.');
+  return rows.slice(1).map(r=>({
+    product:r[pi]||'',
+    batch:r[bi]||'',
+    manufactureDate:di>=0&&r[di]?convertPastedDate(r[di]):todayISO(),
+    manager:mi>=0?(r[mi]||''):'',
+  })).filter(x=>x.product && x.batch);
+}
+function todayISO(){
+  const d=new Date(), z=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());
+}
+function convertPastedDate(v){
+  v=String(v||'').trim();
+  if(/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(v)){
+    const a=v.split(/[-/.]/).map(Number);
+    return a[0]+'-'+String(a[1]).padStart(2,'0')+'-'+String(a[2]).padStart(2,'0');
+  }
+  if(/^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}$/.test(v)){
+    const a=v.split(/[-/.]/).map(Number);
+    return a[2]+'-'+String(a[1]).padStart(2,'0')+'-'+String(a[0]).padStart(2,'0');
+  }
+  // Excel serial date
+  if(/^\d+(\.\d+)?$/.test(v)){
+    const n=Number(v);
+    if(n>20000 && n<80000){
+      const d=new Date(Date.UTC(1899,11,30)+n*86400000);
+      return d.toISOString().slice(0,10);
+    }
+  }
+  return v || todayISO();
+}
+function renderPastePreview(){
+  const area=document.getElementById('excelPasteArea');
+  const box=document.getElementById('pastePreview');
+  if(!area||!box)return;
+  try{
+    const rows=parsePastedRows(area.value);
+    if(!area.value.trim()){box.innerHTML='';return;}
+    box.innerHTML='<div style="font-size:13px;color:#334155;">등록 가능 건수: <b>'+rows.length+'</b>건</div>';
+  }catch(e){
+    box.innerHTML='<div style="font-size:13px;color:#dc2626;">'+e.message+'</div>';
+  }
+}
+function getAllPreparationNamesForPaste(){
+  const defaults = ["PV 계획서","세척기록서 제·개정","CV 계획서","변경관리 승인"];
+  let custom=[];
+  try{ custom=JSON.parse(localStorage.getItem('gmp_custom_preparations_v2')||'[]'); }catch(e){}
+  return [...defaults,...custom.filter(x=>x && !defaults.includes(x))];
+}
+function createPasteSchedule(row){
+  const prepNames=getAllPreparationNamesForPaste();
+  const prep=prepNames.map(name=>({
+    id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),
+    name,
+    dueDate:row.manufactureDate,
+    completed:false
+  }));
+  return {
+    id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),
+    product:row.product,
+    batch:row.batch,
+    manufactureDate:row.manufactureDate,
+    manager:row.manager,
+    preparations:prep,
+    memo:'엑셀 복사·붙여넣기 일괄등록',
+    archived:false,
+    createdAt:new Date().toISOString(),
+    updatedAt:new Date().toISOString()
+  };
+}
+function registerPastedExcel(){
+  try{
+    const rows=parsePastedRows(document.getElementById('excelPasteArea').value);
+    if(!rows.length){alert('등록할 데이터가 없습니다.');return;}
+    const bad=rows.filter(r=>!r.product||!r.batch);
+    if(bad.length){alert('제품명과 Lot번호가 없는 행이 있습니다.');return;}
+    const key='gmp_manufacturing_schedule_v2';
+    let schedules=[];
+    try{schedules=JSON.parse(localStorage.getItem(key)||'[]');}catch(e){schedules=[];}
+    rows.forEach(r=>schedules.push(createPasteSchedule(r)));
+    localStorage.setItem(key,JSON.stringify(schedules));
+    closePasteModal();
+    if(typeof renderAll==='function') renderAll();
+    else if(typeof render==='function') render();
+    alert(rows.length+'건이 등록되었습니다.');
+  }catch(e){
+    alert(e.message||'붙여넣은 데이터를 처리할 수 없습니다.');
+  }
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  const a=document.getElementById('excelPasteArea');
+  if(a)a.addEventListener('input',renderPastePreview);
+});
+</script>
+
+
+<script>
+function calendarPrepHtmlForSchedule(s){
+  const ps=(s.preparations||[]).filter(p=>!p.completed);
+  if(!ps.length)return '';
+  return ps.map(p=>{
+    const due=p.dueDate||'';
+    const d=due?new Date(due+'T00:00:00'):null;
+    const today=new Date(); today.setHours(0,0,0,0);
+    let cls='cal-prep';
+    if(d && d<today) cls+=' late';
+    else if(d && d.getTime()===today.getTime()) cls+=' today';
+    return '<div class="'+cls+'">↳ '+escapeHtml((s.product||'')+' - '+(p.name||''))+'</div>';
+  }).join('');
+}
+function escapeHtml2(v){
+  return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+</script>
+<style>
+.cal-prep{font-size:10px;line-height:1.25;margin-top:2px;padding:3px 4px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.95;cursor:pointer;background:#f8fafc}
+.cal-prep.done{background:#eff6ff;text-decoration:line-through;opacity:.75}
+.cal-prep.late{font-weight:700;background:#fef2f2}
+.cal-prep.today{font-weight:700;background:#fff7ed}
+.cal-prep.soon{font-weight:600;background:#fffbeb}
+</style>
+
+
+<style>
+#autoSavePanel .btn{white-space:nowrap}
+</style>
+<script>
+(function(){
+const DB='gmp_autosave_db_v1', STORE='handles', KEY='directory';
+let dirHandle=null, timer=null, writing=false, pending=false;
+function st(t,c){const e=document.getElementById('autoSaveStatus');if(e){e.textContent=t;e.style.color=c||'#64748b';}}
+function db(){return new Promise((res,rej)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function put(h){const d=await db();return new Promise((res,rej)=>{const x=d.transaction(STORE,'readwrite');x.objectStore(STORE).put(h,KEY);x.oncomplete=res;x.onerror=()=>rej(x.error);});}
+async function get(){const d=await db();return new Promise((res,rej)=>{const x=d.transaction(STORE);const r=x.objectStore(STORE).get(KEY);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error);});}
+async function perm(h,ask){if(!h||!h.queryPermission)return true;let p=await h.queryPermission({mode:'readwrite'});if(p==='granted')return true;if(ask)return (await h.requestPermission({mode:'readwrite'}))==='granted';return false;}
+function data(){let s=[],c=[];try{s=JSON.parse(localStorage.getItem('gmp_manufacturing_schedule_v2')||'[]')}catch(e){}try{c=JSON.parse(localStorage.getItem('gmp_custom_preparations_v2')||'[]')}catch(e){}return {app:'GMP 제조 일정 관리',version:2,savedAt:new Date().toISOString(),schedules:s,customPreparations:c};}
+async function save(){
+ if(!dirHandle)return;if(writing){pending=true;return;}writing=true;
+ try{if(!await perm(dirHandle,false)){st('폴더 권한 확인 필요','#d97706');return;}
+ const f=await dirHandle.getFileHandle('GMP_제조일정_자동백업.json',{create:true});
+ const w=await f.createWritable();await w.write(JSON.stringify(data(),null,2));await w.close();
+ st('자동저장 완료 · '+new Date().toLocaleTimeString('ko-KR'),'#15803d');
+ }catch(e){console.error(e);st('자동저장 오류','#dc2626');}
+ finally{writing=false;if(pending){pending=false;setTimeout(save,100);}}
+}
+function schedule(){if(!dirHandle)return;clearTimeout(timer);timer=setTimeout(save,350);}
+window.selectAutoSaveFolder=async function(){
+ if(!window.showDirectoryPicker){alert('최신 Chrome 또는 Edge를 사용해 주세요.');return;}
+ try{const h=await window.showDirectoryPicker({mode:'readwrite'});if(!await perm(h,true))return;
+ dirHandle=h;await put(h);st('자동저장 폴더 연결됨','#15803d');await save();
+ alert('자동저장 폴더가 지정되었습니다.\\n이후 데이터 변경 시 자동으로 백업됩니다.');
+ }catch(e){if(e.name!=='AbortError')alert('저장 폴더 지정 중 오류가 발생했습니다.');}
+};
+const set0=Storage.prototype.setItem;
+Storage.prototype.setItem=function(k,v){const r=set0.apply(this,arguments);if(this===localStorage&&(k==='gmp_manufacturing_schedule_v2'||k==='gmp_custom_preparations_v2'))schedule();return r;};
+window.addEventListener('DOMContentLoaded',async()=>{if(!window.showDirectoryPicker){st('Chrome/Edge 권장','#d97706');return;}try{dirHandle=await get();if(dirHandle&&await perm(dirHandle,false)){st('자동저장 폴더 연결됨','#15803d');await save();}else if(dirHandle)st('폴더 권한 확인 필요','#d97706');}catch(e){}});
+})();
+</script>
+
+</body>
+</html>
